@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bulkread"
+authors = [
+    {name = "The pynbody team", email = "pynbody-users@googlegroups.com"}
+]
+description = "Fast, threaded bulk reads of HDF5 datasets (and other files), bypassing libhdf5 where it is safe"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+    "numpy>=2.0.0",
+    "h5py>=3.8.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+tests = ["pytest"]
+
+[tool.setuptools.dynamic]
+version = {attr = "bulkread.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "testdata: tests reading the pynbody test data, which are fetched by tests/fetch_testdata.py",
+]
+
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+known_first_party = ["bulkread"]
