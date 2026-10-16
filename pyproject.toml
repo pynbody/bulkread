@@ -9,8 +9,8 @@ authors = [
 ]
 description = "Fast, threaded bulk reads of HDF5 datasets (and other files), bypassing libhdf5 where it is safe"
 readme = "README.md"
-license = "GPL-3.0-or-later"
-license-files = ["LICENSE"]
+license = "LGPL-3.0-or-later"
+license-files = ["COPYING", "COPYING.LESSER"]
 requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -68,3 +68,8 @@ python -m pytest
 
 Most tests write their own small HDF5 files; `tests/test_testdata.py` checks that every dataset of the real snapshots
 in the pynbody test data reads exactly as it does through h5py, and is skipped if the data have not been fetched.
+
+## Licence
+
+bulkread is free software, under the GNU Lesser General Public License, version 3 or (at your option) any later
+version: see `COPYING.LESSER` and `COPYING`.
