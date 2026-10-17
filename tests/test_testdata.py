@@ -100,6 +100,9 @@ def test_every_dataset_matches_h5py(filename, reader):
             np.testing.assert_array_equal(got, expected[rows], err_msg=f"{dataset.name}[index array]")
 
 
+_conversion_nbytes = 64 * 1024 ** 2
+
+
 @pytest.mark.parametrize("filename", hdf5_files, ids=_file_id)
 def test_conversion_to_wider_types_matches_h5py(filename, reader):
     with h5py.File(filename, 'r') as f:
@@ -107,28 +110,54 @@ def test_conversion_to_wider_types_matches_h5py(filename, reader):
             wider = np.dtype(np.float64 if dataset.dtype.kind == 'f' else np.int64)
             if dataset.dtype.kind == 'u' and dataset.dtype.itemsize == 8:
                 continue
-            expected = np.empty(dataset.shape, dtype=wider)
-            dataset.read_direct(expected)
+            # (at most _conversion_nbytes of the converted rows, which is several of the blocks they are converted in)
+            row_nbytes = wider.itemsize * int(np.prod(dataset.shape[1:]))
+            rows = slice(0, min(dataset.shape[0], max(_conversion_nbytes // row_nbytes, 1)))
+            expected = np.empty((rows.stop,) + dataset.shape[1:], dtype=wider)
+            dataset.read_direct(expected, source_sel=np.s_[rows])
             got = np.empty_like(expected)
-            reader.read([hdf.ReadRequest(dataset, slice(None), got)])
+            reader.read([hdf.ReadRequest(dataset, rows, got)])
             np.testing.assert_array_equal(got, expected, err_msg=dataset.name)
+
+
+# The most data (in bytes, decoded) read in one call by test_all_files_read_together_on_threads, so that the test
+# fits in the memory of a CI runner
+_batch_nbytes = 500 * 1024 ** 2
+
+
+def _batches_of_files():
+    """The files, in batches of consecutive files (so that, for example, the files of a multi-file snapshot are mostly
+    read together), each holding at most _batch_nbytes of data unless a single file holds more"""
+    batches, batch, total = [], [], 0
+    for filename in hdf5_files:
+        with h5py.File(filename, 'r') as f:
+            nbytes = sum(d.size * d.dtype.itemsize for d in _datasets(f))
+        if batch and total + nbytes > _batch_nbytes:
+            batches.append(batch)
+            batch, total = [], 0
+        batch.append(filename)
+        total += nbytes
+    return batches + [batch]
 
 
 @pytest.mark.parametrize("threads", [(1, 0), (2, 0), (1, 3), (4, 4)])
 def test_all_files_read_together_on_threads(monkeypatch, reader, threads):
-    """Every dataset of every file, read in one call, with input and decode threads (where there is work for them)"""
+    """Every dataset of every file, read a batch of files in one call, with input and decode threads (where there is
+    work for them)"""
     monkeypatch.setitem(hdf.strategy.config, 'io-threads', threads[0])
     monkeypatch.setitem(hdf.strategy.config, 'decode-threads', threads[1])
-    files = [h5py.File(filename, 'r') for filename in hdf5_files]
-    try:
-        datasets = [d for f in files for d in _datasets(f)]
-        destinations = [np.empty(d.shape, dtype=d.dtype) for d in datasets]
-        reader.read([hdf.ReadRequest(d, slice(None), a) for d, a in zip(datasets, destinations)])
-        for dataset, got in zip(datasets, destinations):
-            np.testing.assert_array_equal(got, dataset[()], err_msg=f"{dataset.file.filename}:{dataset.name}")
-    finally:
-        for f in files:
-            f.close()
+    for batch in _batches_of_files():
+        files = [h5py.File(filename, 'r') for filename in batch]
+        try:
+            datasets = [d for f in files for d in _datasets(f)]
+            destinations = [np.empty(d.shape, dtype=d.dtype) for d in datasets]
+            reader.read([hdf.ReadRequest(d, slice(None), a) for d, a in zip(datasets, destinations)])
+            for dataset, got in zip(datasets, destinations):
+                np.testing.assert_array_equal(got, dataset[()], err_msg=f"{dataset.file.filename}:{dataset.name}")
+            del destinations, got
+        finally:
+            for f in files:
+                f.close()
 
 
 # Snapshots whose particle data are all stored in ways the bulk reader reads directly (as pynbody's tests also check)

@@ -62,7 +62,7 @@ reader uses them.
 
 ```
 pip install . pytest
-python tests/fetch_testdata.py   # the HDF5 packages of the pynbody test data, from https://osf.io/5m6zs/
+python tests/fetch_testdata.py   # the HDF5 packages of the pynbody test data (about 850 MB), from https://pynbody.pontzen.uk
 python -m pytest
 ```
 
